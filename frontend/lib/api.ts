@@ -36,11 +36,23 @@ function authHeaders(extra?: HeadersInit): HeadersInit {
 }
 
 async function apiFetch(input: RequestInfo | URL, init: RequestInit | undefined, fallback: string) {
-  try {
-    return await fetch(input, init);
-  } catch {
-    throw new Error(`${fallback} API erişimi yok (${API_BASE}). Backend servisinin çalıştığını kontrol edin.`);
+  const method = (init?.method ?? "GET").toUpperCase();
+  const maxAttempts = method === "GET" ? 3 : 1;
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await fetch(input, init);
+    } catch (err) {
+      lastError = err;
+      if (attempt < maxAttempts) {
+        await new Promise((resolve) => setTimeout(resolve, 350 * attempt));
+        continue;
+      }
+    }
   }
+
+  throw new Error(`${fallback} API erişimi yok (${API_BASE}). Backend servisinin çalıştığını kontrol edin.`);
 }
 
 async function readApiError(res: Response, fallback: string) {
