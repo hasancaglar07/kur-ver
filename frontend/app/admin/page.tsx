@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { ArrowClockwise, WarningCircle, X } from "@phosphor-icons/react";
 
@@ -92,6 +92,14 @@ function toErrorMessage(err: unknown, fallback: string): string {
 }
 
 export default function AdminPage() {
+  return (
+    <Suspense fallback={<main className="mx-auto w-full max-w-[1200px] rounded-[12px] border border-[#EAEAEA] bg-white p-6 text-sm text-[#787774]">Yükleniyor...</main>}>
+      <AdminPageInner />
+    </Suspense>
+  );
+}
+
+function AdminPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const feedbackUi = useFeedback();
