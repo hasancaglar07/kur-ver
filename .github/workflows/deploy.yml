@@ -1,0 +1,53 @@
+name: Deploy Production
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_SSH_KEY: ~/.ssh/id_ed25519
+      DEPLOY_PATH: /opt/kurban
+      DEPLOY_ENV_FILE: .env.prod
+      DEPLOY_COMPOSE_FILE: docker-compose.server.yml
+      DB_SYNC_MODE: from-server
+      HEALTH_ENABLED: "1"
+      HEALTH_FRONTEND_URL: https://kurban.verenel.com.tr
+      HEALTH_API_URL: https://api.verenel.com.tr/
+      HEALTH_API_EXPECT: '"status":"ok"'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate required secrets
+        run: |
+          test -n "${DEPLOY_HOST}" || (echo "DEPLOY_HOST secret missing" && exit 1)
+          test -n "${DEPLOY_USER}" || (echo "DEPLOY_USER secret missing" && exit 1)
+
+      - name: Configure SSH key
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${DEPLOY_HOST}" >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Run deploy script
+        run: |
+          chmod +x ./deploy
+          ./deploy
