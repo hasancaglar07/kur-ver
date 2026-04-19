@@ -23,6 +23,7 @@ import {
   updateOperatorStatus,
 } from "@/lib/api";
 import { useFeedback } from "@/components/ui/feedback-center";
+import { trRequestReason } from "@/lib/text-tr";
 import type { OperatorAccount, SubmissionChangeRequestItem, SubmissionItem, SuperadminAnalyticsOverview, UserRole } from "@/lib/types";
 import { pushUserAction } from "@/lib/userActions";
 
@@ -52,9 +53,9 @@ const adminActionLabels: Record<string, string> = {
   sms_dispatched: "Toplu SMS",
   sms_dispatched_single: "Tekli SMS",
   sms_dispatched_selected: "Seçili SMS",
-  sms_retry_failed: "SMS Retry",
-  submission_change_request_resolved: "Talep Çözüm",
-  submission_risk_overridden: "Risk Override",
+  sms_retry_failed: "Başarısız SMS tekrar deneme",
+  submission_change_request_resolved: "Talep Çözümü",
+  submission_risk_overridden: "Risk Kilidi Kaldırma",
 };
 
 function toErrorMessage(err: unknown, fallback: string): string {
@@ -542,13 +543,13 @@ function AdminPageInner() {
     const eligibleRows = selectedRows.filter((row) => row.sms_failed_count > 0);
     const blockedRows = selectedRows.filter((row) => row.sms_failed_count === 0);
     if (eligibleRows.length === 0) {
-      setFeedback({ type: "error", message: "Retry için başarısız SMS içeren kayıt yok." });
+      setFeedback({ type: "error", message: "Tekrar deneme için başarısız SMS içeren kayıt yok." });
       return;
     }
     const confirmed = await feedbackUi.confirm({
-      title: "Toplu SMS Retry",
-      description: `Seçili ${selectedRows.length} kaydın ${eligibleRows.length} adedinde başarısız SMS var, ${blockedRows.length} adedi atlanacak. Retry başlatılsın mı?`,
-      confirmText: "Retry başlat",
+      title: "Toplu SMS Tekrar Deneme",
+      description: `Seçili ${selectedRows.length} kaydın ${eligibleRows.length} adedinde başarısız SMS var, ${blockedRows.length} adedi atlanacak. Tekrar deneme başlatılsın mı?`,
+      confirmText: "Tekrar dene",
       cancelText: "İptal",
       tone: "warn",
     });
@@ -572,16 +573,16 @@ function AdminPageInner() {
       setBatchFailureIds(failedIds);
       setFeedback({
         type: failCount > 0 ? "error" : "info",
-        message: `Toplu SMS retry: başarılı ${successCount}, başarısız ${failCount}, atlanan ${blockedRows.length}`,
+        message: `Toplu SMS tekrar deneme: başarılı ${successCount}, başarısız ${failCount}, atlanan ${blockedRows.length}`,
       });
       pushUserAction({
         type: "bulk_sms_retry",
-        label: `Toplu SMS retry: ${successCount} kayıt`,
+        label: `Toplu SMS tekrar deneme: ${successCount} kayıt`,
         href: "/admin",
       });
       clearSelection();
     } catch (err) {
-      setFeedback({ type: "error", message: toErrorMessage(err, "Toplu SMS retry sırasında hata oluştu.") });
+      setFeedback({ type: "error", message: toErrorMessage(err, "Toplu SMS tekrar deneme sırasında hata oluştu.") });
     } finally {
       setBatchBusy(null);
     }
@@ -812,7 +813,7 @@ function AdminPageInner() {
                 {slaBreachedCount > 0 && (
                   <div className="flex items-baseline gap-1 rounded-full bg-[#FFF3CD] px-3 py-1">
                     <span className="text-[20px] font-bold leading-none text-[#8E5A00]">{slaBreachedCount}</span>
-                    <span className="text-[12px] font-semibold text-[#8E5A00]">SLA</span>
+                    <span className="text-[12px] font-semibold text-[#8E5A00]">Süre Aşımı</span>
                   </div>
                 )}
                 {openRequests.length > 0 && (
@@ -850,7 +851,7 @@ function AdminPageInner() {
                   onClick={() => setAutoRefreshEnabled((p) => !p)}
                   className={`inline-flex h-9 items-center rounded-[6px] px-3 text-[13px] font-medium ${autoRefreshEnabled ? "bg-[#E8F5E9] text-[#2E7D32]" : "border border-[#EAEAEA] bg-white text-[#787774]"}`}
                 >
-                  Auto {autoRefreshEnabled ? "Açık" : "Kapalı"}
+                  Otomatik {autoRefreshEnabled ? "Açık" : "Kapalı"}
                 </button>
                 <button
                   type="button"
@@ -907,20 +908,20 @@ function AdminPageInner() {
                       <option value="rejected">Reddedilmiş</option>
                     </Select>
                   </FilterField>
-                  <FilterField label="Claim">
+                  <FilterField label="Üstlenme">
                     <Select value={claimStateFilter} onChange={(v) => setClaimStateFilter(v as "" | "none" | "active" | "mine" | "other")}>
                       <option value="">Tümü</option>
-                      <option value="none">Claim yok</option>
+                      <option value="none">Üstlenme yok</option>
                       <option value="active">Aktif</option>
                       <option value="mine">Benimkiler</option>
                       <option value="other">Diğerleri</option>
                     </Select>
                   </FilterField>
-                  <FilterField label="SLA">
+                  <FilterField label="Süre Hedefi">
                     <Select value={slaFilter} onChange={(v) => setSlaFilter(v as "" | "true" | "false")}>
                       <option value="">Tümü</option>
-                      <option value="true">SLA aşılmış</option>
-                      <option value="false">SLA içinde</option>
+                      <option value="true">Süre aşımı var</option>
+                      <option value="false">Süre içinde</option>
                     </Select>
                   </FilterField>
                   <FilterField label="Tarih Başlangıç">
@@ -958,7 +959,7 @@ function AdminPageInner() {
                           Talep #{req.id} · Kayıt #{req.submission_id}
                         </p>
                         <p className="text-[12px] text-[#787774]">
-                          {req.operator_username ?? "-"} · {req.reason_type} · NO {req.submission_no ?? "-"} · {req.submission_region ?? "-"}
+                          {req.operator_username ?? "-"} · {trRequestReason(req.reason_type)} · NO {req.submission_no ?? "-"} · {req.submission_region ?? "-"}
                         </p>
                       </div>
                       <div className="flex gap-1.5">
@@ -977,11 +978,11 @@ function AdminPageInner() {
               </div>
             )}
 
-            {/* ── SLA Alarms ── */}
+            {/* ── Süre Aşımı Alarmları ── */}
             {topSlaBreachedRows.length > 0 && (
               <div className="rounded-[12px] border-2 border-[#FFD699] bg-[#FFFBF0] px-4 py-3">
                 <p className="mb-2 text-[13px] font-bold uppercase tracking-[0.08em] text-[#8E5A00]">
-                  SLA Alarm — {slaBreachedCount} kayıt
+                  Süre Aşımı Alarmı — {slaBreachedCount} kayıt
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {topSlaBreachedRows.map((row) => (
@@ -1009,7 +1010,7 @@ function AdminPageInner() {
                   </button>
                   <button type="button" onClick={runBulkRetrySms} disabled={batchBusy !== null}
                     className="rounded-[8px] border border-[#EAEAEA] bg-white px-3 py-1.5 text-[13px] font-bold text-[#2F3437] disabled:opacity-50">
-                    {batchBusy === "retry_sms" ? "Retry..." : "SMS Retry"}
+                    {batchBusy === "retry_sms" ? "Tekrar deneniyor..." : "SMS Tekrar Dene"}
                   </button>
                   <button type="button" onClick={clearSelection}
                     className="rounded-[8px] border border-[#EAEAEA] bg-white px-3 py-1.5 text-[13px] text-[#787774]">
@@ -1078,7 +1079,7 @@ function AdminPageInner() {
                             <div className="mt-1.5 flex flex-wrap gap-1.5">
                               <span className={`${statusBadgeClass[row.status] ?? "saas-badge-warn"}`}>{statusLabels[row.status] ?? row.status}</span>
                               {row.risk_locked && <span className="inline-flex rounded-full bg-[#FDEDED] px-2 py-0.5 text-[11px] font-bold text-[#9D3438]">Risk</span>}
-                              {row.sla_breached && <span className="inline-flex rounded-full bg-[#FFF3CD] px-2 py-0.5 text-[11px] font-bold text-[#8E5A00]">SLA</span>}
+                              {row.sla_breached && <span className="inline-flex rounded-full bg-[#FFF3CD] px-2 py-0.5 text-[11px] font-bold text-[#8E5A00]">Süre Aşımı</span>}
                             </div>
                           </div>
                           <div className="text-right">
@@ -1163,7 +1164,7 @@ function AdminPageInner() {
                               </span>
                               <div className="mt-1.5 flex flex-wrap gap-1">
                                 {row.risk_locked && <span className="inline-flex rounded-full bg-[#FDEDED] px-2 py-0.5 text-[11px] font-bold text-[#9D3438]">Risk</span>}
-                                {row.sla_breached && <span className="inline-flex rounded-full bg-[#FFF3CD] px-2 py-0.5 text-[11px] font-bold text-[#8E5A00]">SLA</span>}
+                                {row.sla_breached && <span className="inline-flex rounded-full bg-[#FFF3CD] px-2 py-0.5 text-[11px] font-bold text-[#8E5A00]">Süre Aşımı</span>}
                               </div>
                             </td>
                             <td className="px-4 py-3.5">
@@ -1178,7 +1179,7 @@ function AdminPageInner() {
                                 <p className="mt-0.5">{row.last_admin_actor_username} · {row.last_admin_action ? adminActionLabels[row.last_admin_action] ?? row.last_admin_action : "-"}</p>
                               )}
                               {row.latest_request_status && (
-                                <p className="mt-0.5 text-[#8E2F33]">Talep: {row.latest_request_reason_type ?? "-"}</p>
+                                <p className="mt-0.5 text-[#8E2F33]">Talep: {trRequestReason(row.latest_request_reason_type)}</p>
                               )}
                             </td>
                             <td className="px-4 py-3.5">

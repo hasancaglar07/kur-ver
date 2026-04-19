@@ -4,17 +4,8 @@ import { useEffect, useState } from "react";
 
 import { getMyAdminLogs } from "@/lib/api";
 import { useFeedback } from "@/components/ui/feedback-center";
+import { trAdminAction } from "@/lib/text-tr";
 import type { AdminActionLogItem } from "@/lib/types";
-
-const actionLabel: Record<string, string> = {
-  submission_reviewed: "İnceleme kararı",
-  sms_dispatched: "Toplu SMS",
-  sms_dispatched_single: "Tekli SMS",
-  sms_dispatched_selected: "Seçili SMS",
-  sms_retry_failed: "SMS retry",
-  submission_change_request_resolved: "Talep çözüm",
-  submission_risk_overridden: "Risk override",
-};
 
 export default function AdminLogsPage() {
   const feedbackUi = useFeedback();
@@ -66,9 +57,9 @@ export default function AdminLogsPage() {
               <option value="sms_dispatched">Toplu SMS</option>
               <option value="sms_dispatched_single">Tekli SMS</option>
               <option value="sms_dispatched_selected">Seçili SMS</option>
-              <option value="sms_retry_failed">SMS retry</option>
-              <option value="submission_change_request_resolved">Talep çözüm</option>
-              <option value="submission_risk_overridden">Risk override</option>
+              <option value="sms_retry_failed">Başarısız SMS tekrar deneme</option>
+              <option value="submission_change_request_resolved">Talep çözümü</option>
+              <option value="submission_risk_overridden">Risk kilidi kaldırma</option>
             </select>
             <button
               type="button"
@@ -91,7 +82,7 @@ export default function AdminLogsPage() {
             <div className="space-y-2">
               {items.map((item) => (
                 <article key={item.id} className="rounded-[10px] border border-[#EAEAEA] bg-[#FCFCFB] p-3">
-                  <p className="text-sm font-semibold text-[#111111]">{actionLabel[item.action] ?? item.action}</p>
+                  <p className="text-sm font-semibold text-[#111111]">{trAdminAction(item.action)}</p>
                   <p className="mt-1 text-xs text-[#5D6164]">
                     {new Date(item.created_at).toLocaleString("tr-TR")}
                     {item.submission_id ? ` · Kayıt #${item.submission_id}` : ""}

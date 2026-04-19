@@ -22,6 +22,40 @@ type ApiErrorPayload = {
   error?: unknown;
 };
 
+function translateApiMessage(message: string): string {
+  const map: Array<[string, string]> = [
+    ["Invalid token", "Geçersiz oturum anahtarı"],
+    ["User not found", "Kullanıcı bulunamadı"],
+    ["Insufficient role", "Bu işlem için yetkiniz yok"],
+    ["Invalid credentials", "Kullanıcı adı veya şifre hatalı"],
+    ["Account not found", "Hesap bulunamadı"],
+    ["Username already exists", "Kullanıcı adı zaten kullanımda"],
+    ["Username cannot be empty", "Kullanıcı adı boş olamaz"],
+    ["Submission not found", "Kayıt bulunamadı"],
+    ["Request not found", "Talep bulunamadı"],
+    ["Request already resolved", "Talep zaten sonuçlandırılmış"],
+    ["Decision must be approved or rejected", "Karar 'onaylandı' veya 'reddedildi' olmalıdır"],
+    ["Submission is risk locked", "Kayıt risk kilidinde"],
+    ["Submission has no processed video", "Kayıt için işlenmiş video yok"],
+    ["Submission must be approved before SMS", "SMS göndermek için kayıt onaylı olmalı"],
+    ["Submission must be approved before single SMS", "Tekli SMS için kayıt onaylı olmalı"],
+    ["Submission must be approved before selected SMS", "Seçili SMS için kayıt onaylı olmalı"],
+    ["No phone numbers available for this NO", "Bu NO için telefon numarası bulunamadı"],
+    ["No phone numbers available for selection", "Seçim için telefon numarası bulunamadı"],
+    ["Donor record not found", "Bağışçı kaydı bulunamadı"],
+    ["Donor phone is empty", "Bağışçı telefon numarası boş"],
+    ["No failed SMS recipients to retry", "Tekrar gönderilecek başarısız SMS alıcısı yok"],
+    ["Failed recipients cannot be mapped to donor phones", "Başarısız alıcılar bağışçı telefonlarıyla eşleştirilemedi"],
+    ["Default accounts are disabled. Use managed accounts.", "Varsayılan hesaplar kapalı. Yönetilen hesapları kullanın."],
+  ];
+
+  let out = message;
+  for (const [en, tr] of map) {
+    out = out.replaceAll(en, tr);
+  }
+  return out;
+}
+
 function getToken() {
   if (typeof window === "undefined") return "";
   return localStorage.getItem("access_token") ?? "";
@@ -60,7 +94,7 @@ async function readApiError(res: Response, fallback: string) {
     const text = value.trim();
     if (!text) return fallback;
     if (text === "[object Object]" || text === "{}" || text === "null" || text === "undefined") return fallback;
-    return text;
+    return translateApiMessage(text);
   };
 
   const payload = (await res.json().catch(() => ({}))) as ApiErrorPayload;

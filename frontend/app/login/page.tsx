@@ -20,7 +20,7 @@ type AccountPreset = {
 const presets: AccountPreset[] = [
   { id: "operator", label: "Operatör", username: "operator", password: "operator123", note: "Video yükleme akışı" },
   { id: "admin", label: "Yönetici", username: "admin", password: "admin123", note: "İnceleme ve SMS kararları" },
-  { id: "super_admin", label: "Superadmin", username: "superadmin", password: "superadmin123", note: "Operatör yönetimi ve analiz" },
+  { id: "super_admin", label: "Süper Admin", username: "superadmin", password: "superadmin123", note: "Operatör yönetimi ve analiz" },
 ];
 
 export default function LoginPage() {

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { createUploadCancelRequest, getMyUploadLogs } from "@/lib/api";
 import { useFeedback } from "@/components/ui/feedback-center";
+import { trAdminAction, trRequestReason, trRequestStatus, trRiskCode, trRiskNote } from "@/lib/text-tr";
 import type { OperatorLogsResponse, SubmissionStatus } from "@/lib/types";
 
 const statusLabel: Record<SubmissionStatus, string> = {
@@ -13,16 +14,6 @@ const statusLabel: Record<SubmissionStatus, string> = {
   approved: "Onaylandı",
   rejected: "Reddedildi",
   failed: "Hata",
-};
-
-const adminActionLabel: Record<string, string> = {
-  submission_reviewed: "İnceleme kararı",
-  sms_dispatched: "Toplu SMS",
-  sms_dispatched_single: "Tekli SMS",
-  sms_dispatched_selected: "Seçili SMS",
-  sms_retry_failed: "SMS retry",
-  submission_change_request_resolved: "Talep çözümü",
-  submission_risk_overridden: "Risk override",
 };
 
 export default function UploaderLogsPage() {
@@ -167,13 +158,13 @@ export default function UploaderLogsPage() {
                   )}
                   {row.risk_locked && (
                     <p className="mt-2 rounded-[6px] border border-[#F2D9DB] bg-[#FDF0F1] px-2 py-1 text-xs text-[#9D3438]">
-                      Risk kilidi aktif{row.risk_codes.length ? ` (${row.risk_codes.join(", ")})` : ""}. {row.risk_lock_note ? `Not: ${row.risk_lock_note}` : ""}
+                      Risk kilidi aktif{row.risk_codes.length ? ` (${row.risk_codes.map(trRiskCode).join(", ")})` : ""}. {row.risk_lock_note ? trRiskNote(row.risk_lock_note) : ""}
                     </p>
                   )}
                   {row.latest_request_status && (
                     <div className="mt-1 rounded-[6px] border border-[#EAEAEA] bg-white px-2 py-1 text-xs text-[#5D6164]">
                       <p>
-                        Son talep: <strong>{row.latest_request_reason_type ?? "-"}</strong> · Durum: <strong>{row.latest_request_status}</strong>
+                        Son talep: <strong>{trRequestReason(row.latest_request_reason_type)}</strong> · Durum: <strong>{trRequestStatus(row.latest_request_status)}</strong>
                       </p>
                       {row.latest_request_admin_note && <p>Admin notu: {row.latest_request_admin_note}</p>}
                       {row.latest_request_resolved_at && <p>Çözüm zamanı: {new Date(row.latest_request_resolved_at).toLocaleString("tr-TR")}</p>}
@@ -182,7 +173,7 @@ export default function UploaderLogsPage() {
                   {(row.last_admin_action || row.last_admin_actor_username) && (
                     <p className="mt-1 text-xs text-[#6B7073]">
                       Son admin işlemi: {row.last_admin_actor_username ?? "-"} ·{" "}
-                      {row.last_admin_action ? adminActionLabel[row.last_admin_action] ?? row.last_admin_action : "-"}
+                      {row.last_admin_action ? trAdminAction(row.last_admin_action) : "-"}
                     </p>
                   )}
                   <div className="mt-2 flex flex-wrap gap-2">

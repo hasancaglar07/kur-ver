@@ -18,6 +18,7 @@ import {
   updateSubmissionNo,
 } from "@/lib/api";
 import { useFeedback } from "@/components/ui/feedback-center";
+import { trRiskCode, trRiskNote } from "@/lib/text-tr";
 import type { SubmissionDetail, UserRole } from "@/lib/types";
 
 type MatchFilter = "all" | "matched" | "unmatched";
@@ -129,7 +130,7 @@ export default function AdminDetailPage() {
     let active = true;
     claimSubmission(submissionId, "admin_detail_open")
       .then((r) => { if (active) setClaimInfo({ adminId: r.claimed_by_admin_id, expiresAt: r.claim_expires_at }); })
-      .catch((e) => { if (active) setMessage({ tone: "error", text: e instanceof Error ? e.message : "Claim alınamadı." }); });
+      .catch((e) => { if (active) setMessage({ tone: "error", text: e instanceof Error ? e.message : "Üstlenme bilgisi alınamadı." }); });
 
     const timer = window.setInterval(() => {
       claimSubmission(submissionId, "admin_detail_heartbeat")
@@ -248,9 +249,9 @@ export default function AdminDetailPage() {
   };
 
   const onRiskOverride = async () => {
-    const ok = await feedbackUi.confirm({ title: "Risk Override", description: "Risk kilidini kaldır ve bypass uygula?", confirmText: "Evet", cancelText: "Vazgeç", tone: "warn" });
+    const ok = await feedbackUi.confirm({ title: "Risk Kilidini Kaldır", description: "Risk kilidini kaldırıp onay sürecine devam etmek istiyor musunuz?", confirmText: "Evet", cancelText: "Vazgeç", tone: "warn" });
     if (!ok) return;
-    const n = await feedbackUi.prompt({ title: "Override Notu", description: "Min 10 karakter", minLength: 10, placeholder: "Not…", confirmText: "Kaldır" });
+    const n = await feedbackUi.prompt({ title: "Kaldırma Notu", description: "En az 10 karakter", minLength: 10, placeholder: "Not…", confirmText: "Kaldır" });
     if (!n) return;
     setRiskOverrideBusy(true);
     try { await overrideSubmissionRisk(submissionId, n.trim()); setMessage({ tone: "success", text: "Risk kilidi kaldırıldı." }); await refresh(); }
@@ -333,9 +334,9 @@ export default function AdminDetailPage() {
               </div>
               <div>
                 <p className="text-[14px] font-semibold text-orange-800">
-                  RİSK KİLİDİ{data.risk_codes.length ? ` — ${data.risk_codes.join(", ")}` : ""}
+                  RİSK KİLİDİ{data.risk_codes.length ? ` — ${data.risk_codes.map(trRiskCode).join(", ")}` : ""}
                 </p>
-                <p className="mt-0.5 text-[13px] text-orange-700">{data.risk_lock_note ?? "Risk açıklaması yok"}</p>
+                <p className="mt-0.5 text-[13px] text-orange-700">{trRiskNote(data.risk_lock_note) || "Risk açıklaması yok"}</p>
               </div>
             </div>
             {userRole === "super_admin" ? (
@@ -344,7 +345,7 @@ export default function AdminDetailPage() {
                 {riskOverrideBusy ? "…" : "Kilidi Kaldır"}
               </button>
             ) : (
-              <span className="shrink-0 text-[12px] text-orange-600">Sadece superadmin</span>
+              <span className="shrink-0 text-[12px] text-orange-600">Sadece süper admin</span>
             )}
           </div>
         )}
@@ -572,7 +573,7 @@ export default function AdminDetailPage() {
               </div>
 
               <div className="mt-4 space-y-3">
-                {[{ label: "Transcript", val: data.transcript_text }, { label: "OCR", val: data.ocr_text }].map(({ label, val }) => (
+                {[{ label: "Konuşma Metni", val: data.transcript_text }, { label: "OCR Metni", val: data.ocr_text }].map(({ label, val }) => (
                   <div key={label}>
                     <p className="mb-1 text-[11px] font-semibold uppercase tracking-widest text-slate-400">{label}</p>
                     <pre className="max-h-[140px] overflow-auto rounded-xl border border-slate-100 bg-slate-50 p-3 text-[12px] leading-relaxed text-slate-600 whitespace-pre-wrap">

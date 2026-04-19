@@ -141,7 +141,7 @@ export default function UploaderPage() {
 
     if (!country.trim() || !city.trim() || !region.trim()) {
       setUploadState("error");
-      setMessage("Hesap bölge bilgisi eksik. Superadmin ile iletişime geçin.");
+      setMessage("Hesap bölge bilgisi eksik. Süper admin ile iletişime geçin.");
       return;
     }
 
@@ -240,7 +240,7 @@ export default function UploaderPage() {
           <form id="uploader-form" className="grid gap-4" onSubmit={onSubmit} noValidate>
             {!hasProfileRegion && (
               <p className="inline-flex items-center gap-1 rounded-[8px] border border-[#FDEBEC] bg-[#FDEBEC] px-3 py-2 text-[15px] text-[#9F2F2D]">
-                <WarningCircle size={15} /> Hesap bölge bilgisi eksik. Superadmin ile iletişime geçin.
+                <WarningCircle size={15} /> Hesap bölge bilgisi eksik. Süper admin ile iletişime geçin.
               </p>
             )}
 

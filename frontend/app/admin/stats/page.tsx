@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { WarningCircle } from "@phosphor-icons/react";
 
 import { getMe, getSuperadminStatsDashboard } from "@/lib/api";
+import { trIssueKey, trIssueSource } from "@/lib/text-tr";
 import { useFeedback } from "@/components/ui/feedback-center";
 import type { SuperadminStatsDashboard } from "@/lib/types";
 
@@ -238,7 +239,7 @@ export default function AdminStatsPage() {
               onClick={() => setAutoRefresh((prev) => !prev)}
               className={`rounded-[8px] border px-3 py-1.5 text-sm ${autoRefresh ? "border-[#2E7D32] bg-[#F0F9F1] text-[#1A6328]" : "border-[#E5E7E4] bg-white text-[#4B4F52]"}`}
             >
-              Auto {autoRefresh ? "Açık" : "Kapalı"}
+              Otomatik {autoRefresh ? "Açık" : "Kapalı"}
             </button>
           </div>
         </section>
@@ -289,7 +290,8 @@ export default function AdminStatsPage() {
             </div>
           </Card>
 
-          <Card title="SLA Durumu">
+          <Card title="Süre Hedefi (SLA)">
+            <p className="mb-2 text-xs text-[#6F7376]">SLA: İşlemlerin hedef sürede tamamlanma performansı.</p>
             <div className="grid gap-2 text-sm">
               <StatusRow
                 label="Yükleme -> Onay (dk)"
@@ -361,8 +363,8 @@ export default function AdminStatsPage() {
                 ) : (
                   data?.issue_breakdown?.items.map((item, idx) => (
                     <tr key={`${item.source}_${item.key}_${idx}`} className="border-t border-[#E5E7E4] hover:bg-[#FAFAF8]">
-                      <td className="px-3 py-2">{issueSourceLabel(item.source)}</td>
-                      <td className="px-3 py-2 text-[#111111]">{item.key}</td>
+                      <td className="px-3 py-2">{trIssueSource(item.source)}</td>
+                      <td className="px-3 py-2 text-[#111111]">{trIssueKey(item.source, item.key)}</td>
                       <td className="px-3 py-2 font-semibold">{numberFmt.format(item.count)}</td>
                     </tr>
                   ))
@@ -492,7 +494,7 @@ export default function AdminStatsPage() {
                   <th className="px-3 py-2">Admin</th>
                   <th className="px-3 py-2">Review Adedi</th>
                   <th className="px-3 py-2">Review Payı (%)</th>
-                  <th className="px-3 py-2">Aktif Claim</th>
+                  <th className="px-3 py-2">Aktif Üstlenme</th>
                   <th className="px-3 py-2">Durum</th>
                 </tr>
               </thead>
@@ -546,8 +548,8 @@ export default function AdminStatsPage() {
                   <th className="px-3 py-2">SMS Aksiyon</th>
                   <th className="px-3 py-2">SMS Başarılı</th>
                   <th className="px-3 py-2">SMS Başarısız</th>
-                  <th className="px-3 py-2">SMS Retry</th>
-                  <th className="px-3 py-2">Aktif Claim</th>
+                  <th className="px-3 py-2">SMS Tekrar Deneme</th>
+                  <th className="px-3 py-2">Aktif Üstlenme</th>
                   <th className="px-3 py-2">Son Aktivite</th>
                   <th className="px-3 py-2">Online</th>
                 </tr>
@@ -571,7 +573,7 @@ export default function AdminStatsPage() {
                   data?.admin_stats?.map((row) => (
                     <tr key={row.admin_id} className="border-t border-[#E5E7E4] hover:bg-[#FAFAF8]">
                       <td className="px-3 py-2 font-medium text-[#111111]">{row.full_name}<div className="text-xs text-[#787774]">@{row.username}</div></td>
-                      <td className="px-3 py-2">{row.role === "super_admin" ? "Super Admin" : "Admin"}</td>
+                      <td className="px-3 py-2">{row.role === "super_admin" ? "Süper Admin" : "Yönetici"}</td>
                       <td className="px-3 py-2">{numberFmt.format(row.review_count)}</td>
                       <td className="px-3 py-2">{numberFmt.format(row.approved_count)}</td>
                       <td className="px-3 py-2">{numberFmt.format(row.rejected_count)}</td>
@@ -640,14 +642,6 @@ function FunnelRow({ label, count, percent }: { label: string; count?: number; p
       </div>
     </div>
   );
-}
-
-function issueSourceLabel(source: string) {
-  if (source === "failure_reason") return "Failure Reason";
-  if (source === "risk_code") return "Risk Kodu";
-  if (source === "risk_state") return "Risk Durumu";
-  if (source === "status") return "Kayıt Durumu";
-  return source;
 }
 
 function trendLabel(trend: string) {
