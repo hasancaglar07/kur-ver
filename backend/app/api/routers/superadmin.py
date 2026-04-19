@@ -60,6 +60,14 @@ def _full_name(user: User) -> str:
     return " ".join(part for part in [user.first_name, user.last_name] if part).strip() or user.username
 
 
+def _as_utc(dt: datetime | None) -> datetime | None:
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC)
+
+
 def _parse_risk_codes_json(value: str | None) -> list[str]:
     if not value:
         return []
@@ -532,7 +540,9 @@ def superadmin_stats_dashboard(
         .all()
     )
     latest_activity_by_user: dict[int, datetime] = {
-        int(actor_id): last_at for actor_id, last_at in latest_activity_rows if actor_id is not None and last_at is not None
+        int(actor_id): normalized
+        for actor_id, last_at in latest_activity_rows
+        if actor_id is not None and (normalized := _as_utc(last_at)) is not None
     }
     recent_activity_rows = (
         db.query(AuditEvent.actor_id, func.max(AuditEvent.created_at))
@@ -541,7 +551,9 @@ def superadmin_stats_dashboard(
         .all()
     )
     recent_activity_by_user: dict[int, datetime] = {
-        int(actor_id): last_at for actor_id, last_at in recent_activity_rows if actor_id is not None and last_at is not None
+        int(actor_id): normalized
+        for actor_id, last_at in recent_activity_rows
+        if actor_id is not None and (normalized := _as_utc(last_at)) is not None
     }
 
     active_claim_rows = (
@@ -561,10 +573,12 @@ def superadmin_stats_dashboard(
             continue
         aid = int(admin_id)
         active_claim_count_by_admin[aid] = active_claim_count_by_admin.get(aid, 0) + 1
-        if claim_updated_at is not None and (
-            aid not in active_claim_last_at_by_admin or claim_updated_at > active_claim_last_at_by_admin[aid]
+        normalized_claim_updated_at = _as_utc(claim_updated_at)
+        if normalized_claim_updated_at is not None and (
+            aid not in active_claim_last_at_by_admin
+            or normalized_claim_updated_at > active_claim_last_at_by_admin[aid]
         ):
-            active_claim_last_at_by_admin[aid] = claim_updated_at
+            active_claim_last_at_by_admin[aid] = normalized_claim_updated_at
 
     status_counts = SuperadminSubmissionStatusCountsOut(
         uploaded=sum(1 for row in submissions if row.status == SubmissionStatus.UPLOADED),
@@ -809,14 +823,16 @@ def superadmin_stats_dashboard(
     pending_review_over_60m = 0
     approved_without_sms_over_30m = 0
     for submission in submissions:
-        review_at = review_rows_for_sla.get(submission.id)
-        sms_sent_at = first_sent_sms_by_submission.get(submission.id)
-        if submission.upload_completed_at and review_at and review_at >= submission.upload_completed_at:
-            upload_to_review_minutes.append((review_at - submission.upload_completed_at).total_seconds() / 60)
+        upload_completed_at = _as_utc(submission.upload_completed_at)
+        created_at = _as_utc(submission.created_at) or now
+        review_at = _as_utc(review_rows_for_sla.get(submission.id))
+        sms_sent_at = _as_utc(first_sent_sms_by_submission.get(submission.id))
+        if upload_completed_at and review_at and review_at >= upload_completed_at:
+            upload_to_review_minutes.append((review_at - upload_completed_at).total_seconds() / 60)
         if review_at and sms_sent_at and sms_sent_at >= review_at:
             review_to_sms_minutes.append((sms_sent_at - review_at).total_seconds() / 60)
 
-        age_minutes = (now - submission.created_at).total_seconds() / 60
+        age_minutes = (now - created_at).total_seconds() / 60
         if submission.status in (SubmissionStatus.UPLOADED, SubmissionStatus.PROCESSING, SubmissionStatus.REVIEW_READY) and age_minutes > 60:
             pending_review_over_60m += 1
         if submission.status == SubmissionStatus.APPROVED and sms_sent_at is None and age_minutes > 30:
