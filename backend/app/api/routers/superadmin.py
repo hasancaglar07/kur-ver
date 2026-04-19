@@ -897,7 +897,7 @@ def superadmin_stats_dashboard(
         ],
     )
 
-    trend_ref = date_to or now
+    trend_ref = _as_utc(date_to) or now
     last_7_start = trend_ref - timedelta(days=7)
     prev_7_start = trend_ref - timedelta(days=14)
 
@@ -933,8 +933,9 @@ def superadmin_stats_dashboard(
                 "last_upload_count": 0,
             },
         )
+        row_created_at = _as_utc(row.created_at)
         score = trend_analysis_by_submission.get(row.id)
-        if row.created_at >= last_7_start:
+        if row_created_at and row_created_at >= last_7_start:
             op["last_upload_count"] = int(op["last_upload_count"]) + 1
             if score is not None:
                 cast_list = op["last_scores"]
