@@ -61,6 +61,7 @@ def _full_name(user: User) -> str:
 
 
 def _as_utc(dt: datetime | None) -> datetime | None:
+    # DB may return naive timestamps in some environments; normalize everything to UTC.
     if dt is None:
         return None
     if dt.tzinfo is None:
