@@ -1,0 +1,76 @@
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/storage:/app/storage
+      - ./backend/kurban.db:/app/kurban.db
+      - ./db.xlsx:/app/db.xlsx:ro
+    environment:
+      - DATABASE_URL=sqlite:///./kurban.db
+      - SECRET_KEY=please-change-me
+      - PUBLIC_SHARE_BASE_URL=${PUBLIC_SHARE_BASE_URL:-http://localhost:3000}
+      - STORAGE_PROVIDER=${STORAGE_PROVIDER:-local}
+      - B2_ENDPOINT_URL=${B2_ENDPOINT_URL:-}
+      - B2_REGION=${B2_REGION:-us-east-005}
+      - B2_ACCESS_KEY_ID=${B2_ACCESS_KEY_ID:-}
+      - B2_SECRET_ACCESS_KEY=${B2_SECRET_ACCESS_KEY:-}
+      - B2_BUCKET=${B2_BUCKET:-}
+      - B2_RAW_PREFIX=${B2_RAW_PREFIX:-raw}
+      - B2_PROCESSED_PREFIX=${B2_PROCESSED_PREFIX:-processed}
+      - B2_WATCH_URL_TTL_SECONDS=${B2_WATCH_URL_TTL_SECONDS:-1800}
+      - B2_ARCHIVE_YEARS=${B2_ARCHIVE_YEARS:-5}
+      - B2_OBJECT_LOCK_ENABLED=${B2_OBJECT_LOCK_ENABLED:-false}
+      - B2_OBJECT_LOCK_MODE=${B2_OBJECT_LOCK_MODE:-GOVERNANCE}
+      - QUEUE_MODE=redis
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+
+  backend-worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["python", "-m", "app.worker"]
+    volumes:
+      - ./backend/storage:/app/storage
+      - ./backend/kurban.db:/app/kurban.db
+      - ./db.xlsx:/app/db.xlsx:ro
+    environment:
+      - DATABASE_URL=sqlite:///./kurban.db
+      - SECRET_KEY=please-change-me
+      - PUBLIC_SHARE_BASE_URL=${PUBLIC_SHARE_BASE_URL:-http://localhost:3000}
+      - STORAGE_PROVIDER=${STORAGE_PROVIDER:-local}
+      - B2_ENDPOINT_URL=${B2_ENDPOINT_URL:-}
+      - B2_REGION=${B2_REGION:-us-east-005}
+      - B2_ACCESS_KEY_ID=${B2_ACCESS_KEY_ID:-}
+      - B2_SECRET_ACCESS_KEY=${B2_SECRET_ACCESS_KEY:-}
+      - B2_BUCKET=${B2_BUCKET:-}
+      - B2_RAW_PREFIX=${B2_RAW_PREFIX:-raw}
+      - B2_PROCESSED_PREFIX=${B2_PROCESSED_PREFIX:-processed}
+      - B2_WATCH_URL_TTL_SECONDS=${B2_WATCH_URL_TTL_SECONDS:-1800}
+      - B2_ARCHIVE_YEARS=${B2_ARCHIVE_YEARS:-5}
+      - B2_OBJECT_LOCK_ENABLED=${B2_OBJECT_LOCK_ENABLED:-false}
+      - B2_OBJECT_LOCK_MODE=${B2_OBJECT_LOCK_MODE:-GOVERNANCE}
+      - QUEUE_MODE=redis
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_BASE=http://localhost:8000/api
+    depends_on:
+      - backend

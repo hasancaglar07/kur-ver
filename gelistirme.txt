@@ -1,0 +1,42 @@
+ Kurban Video Platform Geliştirme Raporu (Önceliklendirilmiş)
+
+  Mevcut Durum Özeti
+
+  - Akış çalışıyor: video yükleme → AI analiz (OCR+transcript) → DB isim eşleştirme → onay/red → SMS.
+  - Arayüz ve Türkçeleştirme iyi seviyede.
+  - Bir sonraki seviye için odak: doğruluk, operasyon hızı, güvenli gönderim, ölçek.
+
+  P0 (En Yüksek Öncelik, hemen yapılmalı)
+
+  1. Seçili kişilere SMS için backend bulk endpoint eklenmesi (frontend’de tek tek döngü yerine sunucu tarafı toplu
+     işlem).
+  2. SMS idempotency + retry mekanizması (aynı kişiye yanlışlıkla tekrar SMS gitmesin).
+  3. Ad-soyad eşleşmesinde “manuel düzeltme” ekranı (operatör yanlış eşleşmeyi düzeltebilsin).
+  4. AI çıktılarına güven skoru (isim bazlı confidence) ve düşük güvenli isimleri işaretleme.
+  5. Pipeline’ı thread yerine job queue (Redis + Celery/RQ) ile çalıştırma.
+  6. Hata izleme ve log paneli (analiz neden failed, hangi provider düştü, OCR boş mu vb).
+
+  P1 (Yüksek değer, kısa-orta vadede)
+
+  1. Gelişmiş arama ekranı: submission bazında tarih, bölge, NO, durum, kalite, SMS durumu.
+  2. Gönderim merkezi: SMS geçmişi, yeniden dene, başarısızları filtrele.
+  3. DB import kalite kontrolü: telefon formatı (E.164), mükerrer kayıt raporu, eksik alan raporu.
+  4. “Onay sonrası otomatik SMS” kural motoru (hemen/planlı).
+  5. Video kalite kontrolü: ses seviyesi, sessizlik oranı, bulanıklık, titreme puanı.
+  6. Yetki modeli: admin/superadmin için işlem bazlı yetki (kim SMS atabilir, kim onaylayabilir).
+
+  P2 (Çok güçlü fark yaratır)
+
+  1. Öğrenen eşleşme sistemi: manuel düzeltmelerden model/dictionary besleme.
+  2. Çoklu dil ve alfabe normalizasyonu (TR/AR/FR isim varyasyonları).
+  3. Operasyon dashboard: günlük işlenen video, doğruluk, onay süresi, SMS teslim oranı.
+  4. SLA ve uyarı sistemi: işlem 10 dk’yı geçerse alarm.
+  5. Müşteri link analitiği: SMS link tıklama/izleme oranı.
+  6. Denetim ve uyum: KVKK log saklama politikası, maskeleme, retention kuralları.
+
+ Beklenen Sonuç (doğru uygulanırsa)
+
+  1. Eşleşme doğruluğunda belirgin artış.
+  2. Operatör işlem süresinde ciddi azalma.
+  3. SMS hata oranında düşüş ve tekrar gönderim kontrolü.
+  4. Daha stabil ve ölçeklenebilir bir altyapı.

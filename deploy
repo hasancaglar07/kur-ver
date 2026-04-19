@@ -1,0 +1,154 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Usage:
+#   ./deploy
+# or with overrides:
+#   DEPLOY_HOST=1.2.3.4 DEPLOY_USER=root DEPLOY_SSH_KEY=~/.ssh/id_ed25519 ./deploy
+
+DEPLOY_HOST="${DEPLOY_HOST:-91.98.22.149}"
+DEPLOY_USER="${DEPLOY_USER:-root}"
+DEPLOY_PATH="${DEPLOY_PATH:-/opt/kurban}"
+DEPLOY_ENV_FILE="${DEPLOY_ENV_FILE:-.env.prod}"
+DEPLOY_COMPOSE_FILE="${DEPLOY_COMPOSE_FILE:-docker-compose.server.yml}"
+DEPLOY_SSH_KEY="${DEPLOY_SSH_KEY:-$HOME/.ssh/id_ed25519}"
+DB_SYNC_MODE="${DB_SYNC_MODE:-from-server}" # from-server | from-local | none
+DB_LOCAL_REL_PATH="${DB_LOCAL_REL_PATH:-backend/kurban.db}"
+DB_REMOTE_REL_PATH="${DB_REMOTE_REL_PATH:-backend/kurban.db}"
+
+HEALTH_ENABLED="${HEALTH_ENABLED:-1}"
+HEALTH_FRONTEND_URL="${HEALTH_FRONTEND_URL:-https://kurban.verenel.com.tr}"
+HEALTH_API_URL="${HEALTH_API_URL:-https://api.verenel.com.tr/}"
+HEALTH_API_EXPECT="${HEALTH_API_EXPECT:-\"status\":\"ok\"}"
+HEALTH_RETRIES="${HEALTH_RETRIES:-15}"
+HEALTH_SLEEP_SECONDS="${HEALTH_SLEEP_SECONDS:-2}"
+
+SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
+PROJECT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+TARGET="${DEPLOY_USER}@${DEPLOY_HOST}"
+
+SSH_OPTS=(-o StrictHostKeyChecking=accept-new)
+if [[ -f "$DEPLOY_SSH_KEY" ]]; then
+  SSH_OPTS+=(-i "$DEPLOY_SSH_KEY" -o IdentitiesOnly=yes)
+else
+  echo "Uyari: SSH key bulunamadi (${DEPLOY_SSH_KEY}). Parola sorulabilir."
+fi
+
+SSH_CMD=(ssh "${SSH_OPTS[@]}")
+RSYNC_RSH="$(printf '%q ' "${SSH_CMD[@]}")"
+
+sync_db_from_server() {
+  local local_db="${PROJECT_DIR}/${DB_LOCAL_REL_PATH}"
+  local remote_db="${DEPLOY_PATH}/${DB_REMOTE_REL_PATH}"
+  local remote_snapshot="${DEPLOY_PATH}/${DB_REMOTE_REL_PATH}.deploysync"
+
+  echo "-> DB kaynak: canlı (${TARGET}:${remote_db})"
+  if ! "${SSH_CMD[@]}" "$TARGET" "[ -f '${remote_db}' ]"; then
+    echo "   [uyari] Canli DB bulunamadi, bu adim atlandi."
+    return 0
+  fi
+
+  mkdir -p "$(dirname "$local_db")"
+  if [[ -f "$local_db" ]]; then
+    cp -f "$local_db" "${local_db}.bak.$(date +%Y%m%d_%H%M%S)"
+  fi
+
+  "${SSH_CMD[@]}" "$TARGET" "set -e; if command -v sqlite3 >/dev/null 2>&1; then sqlite3 '${remote_db}' \".backup '${remote_snapshot}'\"; else cp -f '${remote_db}' '${remote_snapshot}'; fi"
+  rsync -az -e "$RSYNC_RSH" "${TARGET}:${remote_snapshot}" "$local_db"
+  "${SSH_CMD[@]}" "$TARGET" "rm -f '${remote_snapshot}'"
+  echo "   [ok] Canli DB yerel ortama alindi -> ${DB_LOCAL_REL_PATH}"
+}
+
+check_http_status() {
+  local name="$1"
+  local url="$2"
+  local tries=0
+  local code=""
+
+  while (( tries < HEALTH_RETRIES )); do
+    tries=$((tries + 1))
+    code="$(curl -k -sS -o /dev/null -w '%{http_code}' --max-time 20 "$url" || true)"
+    if [[ "$code" =~ ^2|^3 ]]; then
+      echo "   [ok] ${name} (${url}) status=${code}"
+      return 0
+    fi
+    echo "   [bekleniyor] ${name} deneme ${tries}/${HEALTH_RETRIES} status=${code:-ERR}"
+    sleep "$HEALTH_SLEEP_SECONDS"
+  done
+
+  echo "   [hata] ${name} ulasilamiyor: ${url}"
+  return 1
+}
+
+check_http_body() {
+  local name="$1"
+  local url="$2"
+  local expected="$3"
+  local tries=0
+  local body=""
+
+  while (( tries < HEALTH_RETRIES )); do
+    tries=$((tries + 1))
+    body="$(curl -k -sS --max-time 20 "$url" || true)"
+    if [[ -n "$body" && "$body" == *"$expected"* ]]; then
+      echo "   [ok] ${name} (${url}) expected bulundu"
+      return 0
+    fi
+    echo "   [bekleniyor] ${name} deneme ${tries}/${HEALTH_RETRIES}"
+    sleep "$HEALTH_SLEEP_SECONDS"
+  done
+
+  echo "   [hata] ${name} beklenen icerik gelmedi: ${url}"
+  return 1
+}
+
+echo "-> Sync basladi: ${PROJECT_DIR} -> ${TARGET}:${DEPLOY_PATH}"
+if [[ "$DB_SYNC_MODE" == "from-server" ]]; then
+  sync_db_from_server
+elif [[ "$DB_SYNC_MODE" == "from-local" ]]; then
+  echo "-> DB kaynak: yerel (${DB_LOCAL_REL_PATH})"
+elif [[ "$DB_SYNC_MODE" == "none" ]]; then
+  echo "-> DB sync kapali (none)"
+else
+  echo "[hata] Gecersiz DB_SYNC_MODE: ${DB_SYNC_MODE}"
+  exit 1
+fi
+
+RSYNC_ARGS=(
+  -az
+  --delete
+  --exclude ".git"
+  --exclude ".agents"
+  --exclude ".claude"
+  --exclude ".factory"
+  --exclude ".codex"
+  --exclude "frontend/node_modules"
+  --exclude "frontend/.next"
+  --exclude "backend/.venv"
+  --exclude "backend/__pycache__"
+  --exclude "backend/storage/raw"
+  --exclude "backend/storage/processed"
+  --exclude ".env"
+  --exclude ".env.*"
+  --exclude "frontend/.env.local"
+  --exclude "backend/.env"
+  --exclude "WhatsApp Video 2026-04-18 at 17.14.15.mp4"
+  --exclude ".env.prod"
+)
+
+if [[ "$DB_SYNC_MODE" != "from-local" ]]; then
+  RSYNC_ARGS+=(--exclude "${DB_LOCAL_REL_PATH}")
+fi
+
+rsync "${RSYNC_ARGS[@]}" -e "$RSYNC_RSH" "${PROJECT_DIR}/" "${TARGET}:${DEPLOY_PATH}/"
+
+echo "-> Container deploy basladi"
+"${SSH_CMD[@]}" "$TARGET" "set -e; cd '${DEPLOY_PATH}'; docker compose --env-file '${DEPLOY_ENV_FILE}' -f '${DEPLOY_COMPOSE_FILE}' up -d --build; docker compose --env-file '${DEPLOY_ENV_FILE}' -f '${DEPLOY_COMPOSE_FILE}' ps"
+
+if [[ "$HEALTH_ENABLED" == "1" ]]; then
+  echo "-> Health-check basladi"
+  check_http_status "frontend" "$HEALTH_FRONTEND_URL"
+  check_http_body "api" "$HEALTH_API_URL" "$HEALTH_API_EXPECT"
+fi
+
+echo "-> Deploy tamamlandi"

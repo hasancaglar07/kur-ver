@@ -1,0 +1,119 @@
+name: kurban-prod
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    expose:
+      - "6379"
+    volumes:
+      - kurban_redis:/data
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    expose:
+      - "8000"
+    environment:
+      DATABASE_URL: sqlite:////app/data/kurban.db
+      STORAGE_DIR: /app/data/storage
+      SECRET_KEY: ${SECRET_KEY}
+      SIGNED_URL_SECRET: ${SIGNED_URL_SECRET}
+      PUBLIC_WATCH_BASE_URL: ${PUBLIC_WATCH_BASE_URL}
+      PUBLIC_SHARE_BASE_URL: ${PUBLIC_SHARE_BASE_URL}
+      STORAGE_PROVIDER: ${STORAGE_PROVIDER:-local}
+      B2_ENDPOINT_URL: ${B2_ENDPOINT_URL:-}
+      B2_REGION: ${B2_REGION:-us-east-005}
+      B2_ACCESS_KEY_ID: ${B2_ACCESS_KEY_ID:-}
+      B2_SECRET_ACCESS_KEY: ${B2_SECRET_ACCESS_KEY:-}
+      B2_BUCKET: ${B2_BUCKET:-}
+      B2_RAW_PREFIX: ${B2_RAW_PREFIX:-raw}
+      B2_PROCESSED_PREFIX: ${B2_PROCESSED_PREFIX:-processed}
+      B2_WATCH_URL_TTL_SECONDS: ${B2_WATCH_URL_TTL_SECONDS:-1800}
+      B2_ARCHIVE_YEARS: ${B2_ARCHIVE_YEARS:-5}
+      B2_OBJECT_LOCK_ENABLED: ${B2_OBJECT_LOCK_ENABLED:-false}
+      B2_OBJECT_LOCK_MODE: ${B2_OBJECT_LOCK_MODE:-GOVERNANCE}
+      QUEUE_MODE: redis
+      REDIS_URL: redis://redis:6379/0
+      REDIS_QUEUE_NAME: video_pipeline
+      AI_PROVIDER: ${AI_PROVIDER:-chain}
+      AI_ALLOW_MOCK_FALLBACK: ${AI_ALLOW_MOCK_FALLBACK:-false}
+      AI_PROVIDER_ORDER: ${AI_PROVIDER_ORDER:-claude-main,glm-main,vertex-main}
+      MAX_UPLOAD_SIZE_BYTES: ${MAX_UPLOAD_SIZE_BYTES:-314572800}
+      CODEFAST_API_KEY: ${CODEFAST_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      VERTEX_API_KEY: ${VERTEX_API_KEY:-}
+      VERTEX_PROJECT_ID: ${VERTEX_PROJECT_ID:-}
+      VERTEX_LOCATION: ${VERTEX_LOCATION:-us-central1}
+      VERTEX_MAIN_MODEL: ${VERTEX_MAIN_MODEL:-gemini-2.5-flash-lite}
+      VERTEX_FALLBACK_MODEL: ${VERTEX_FALLBACK_MODEL:-gemini-2.5-flash}
+    volumes:
+      - kurban_data:/app/data
+    depends_on:
+      - redis
+
+  backend-worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["python", "-m", "app.worker"]
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: sqlite:////app/data/kurban.db
+      STORAGE_DIR: /app/data/storage
+      SECRET_KEY: ${SECRET_KEY}
+      SIGNED_URL_SECRET: ${SIGNED_URL_SECRET}
+      PUBLIC_WATCH_BASE_URL: ${PUBLIC_WATCH_BASE_URL}
+      PUBLIC_SHARE_BASE_URL: ${PUBLIC_SHARE_BASE_URL}
+      STORAGE_PROVIDER: ${STORAGE_PROVIDER:-local}
+      B2_ENDPOINT_URL: ${B2_ENDPOINT_URL:-}
+      B2_REGION: ${B2_REGION:-us-east-005}
+      B2_ACCESS_KEY_ID: ${B2_ACCESS_KEY_ID:-}
+      B2_SECRET_ACCESS_KEY: ${B2_SECRET_ACCESS_KEY:-}
+      B2_BUCKET: ${B2_BUCKET:-}
+      B2_RAW_PREFIX: ${B2_RAW_PREFIX:-raw}
+      B2_PROCESSED_PREFIX: ${B2_PROCESSED_PREFIX:-processed}
+      B2_WATCH_URL_TTL_SECONDS: ${B2_WATCH_URL_TTL_SECONDS:-1800}
+      B2_ARCHIVE_YEARS: ${B2_ARCHIVE_YEARS:-5}
+      B2_OBJECT_LOCK_ENABLED: ${B2_OBJECT_LOCK_ENABLED:-false}
+      B2_OBJECT_LOCK_MODE: ${B2_OBJECT_LOCK_MODE:-GOVERNANCE}
+      QUEUE_MODE: redis
+      REDIS_URL: redis://redis:6379/0
+      REDIS_QUEUE_NAME: video_pipeline
+      AI_PROVIDER: ${AI_PROVIDER:-chain}
+      AI_ALLOW_MOCK_FALLBACK: ${AI_ALLOW_MOCK_FALLBACK:-false}
+      AI_PROVIDER_ORDER: ${AI_PROVIDER_ORDER:-claude-main,glm-main,vertex-main}
+      MAX_UPLOAD_SIZE_BYTES: ${MAX_UPLOAD_SIZE_BYTES:-314572800}
+      CODEFAST_API_KEY: ${CODEFAST_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      VERTEX_API_KEY: ${VERTEX_API_KEY:-}
+      VERTEX_PROJECT_ID: ${VERTEX_PROJECT_ID:-}
+      VERTEX_LOCATION: ${VERTEX_LOCATION:-us-central1}
+      VERTEX_MAIN_MODEL: ${VERTEX_MAIN_MODEL:-gemini-2.5-flash-lite}
+      VERTEX_FALLBACK_MODEL: ${VERTEX_FALLBACK_MODEL:-gemini-2.5-flash}
+    volumes:
+      - kurban_data:/app/data
+    depends_on:
+      - redis
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE}
+    restart: unless-stopped
+    expose:
+      - "3000"
+    environment:
+      NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE}
+    depends_on:
+      - backend
+
+volumes:
+  kurban_data:
+  kurban_redis:
