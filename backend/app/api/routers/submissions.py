@@ -1652,7 +1652,7 @@ def delete_submission(
             ),
             {
                 "note": SOFT_DELETED_NOTE,
-                "status": SubmissionStatus.REJECTED.value,
+                "status": SubmissionStatus.REJECTED.name,
                 "submission_id": submission_id,
                 "org_id": org_id,
             },
