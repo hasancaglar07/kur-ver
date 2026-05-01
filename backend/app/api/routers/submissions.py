@@ -4,6 +4,7 @@ import hmac
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -82,6 +83,7 @@ ADMIN_ACTIONS = {
     "submission_change_request_resolved",
     "submission_risk_overridden",
 }
+SOFT_DELETED_NOTE = "__soft_deleted_by_super_admin__"
 
 
 def _as_utc(dt: datetime | None) -> datetime | None:
@@ -531,7 +533,10 @@ def list_submissions(
     if claim_filter and claim_filter not in ALLOWED_CLAIM_FILTERS:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid claim_state filter")
 
-    query = db.query(VideoSubmission).filter(VideoSubmission.org_id == org_id)
+    query = db.query(VideoSubmission).filter(
+        VideoSubmission.org_id == org_id,
+        (VideoSubmission.note.is_(None) | (VideoSubmission.note != SOFT_DELETED_NOTE)),
+    )
     if status_filter:
         query = query.filter(VideoSubmission.status == status_filter)
     if region:
@@ -1625,7 +1630,35 @@ def delete_submission(
         )
     except SQLAlchemyError:
         pass
-    db.commit()
+
+    soft_deleted = False
+    try:
+        db.commit()
+    except SQLAlchemyError:
+        db.rollback()
+        # Some legacy malformed SQLite pages can block DELETE on specific rows.
+        # Fallback: hide from queues with a soft-delete marker.
+        db.execute(
+            text(
+                """
+                UPDATE video_submissions
+                SET note = :note,
+                    status = :status,
+                    claim_admin_id = NULL,
+                    claim_expires_at = NULL,
+                    claim_note = NULL
+                WHERE id = :submission_id AND org_id = :org_id
+                """
+            ),
+            {
+                "note": SOFT_DELETED_NOTE,
+                "status": SubmissionStatus.REJECTED.value,
+                "submission_id": submission_id,
+                "org_id": org_id,
+            },
+        )
+        db.commit()
+        soft_deleted = True
 
     try:
         if raw_path.exists():
@@ -1638,7 +1671,7 @@ def delete_submission(
     except Exception:  # noqa: BLE001
         pass
 
-    return {"submission_id": submission_id, "deleted": True}
+    return {"submission_id": submission_id, "deleted": True, "soft_deleted": soft_deleted}
 
 
 @router.get("/admin-logs/mine", response_model=AdminLogsResponse)
