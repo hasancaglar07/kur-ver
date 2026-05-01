@@ -4,8 +4,8 @@ import hmac
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 
 from app.api.deps import require_org_id, require_roles
 from app.core.config import get_settings
@@ -1586,22 +1586,45 @@ def delete_submission(
         SubmissionChangeRequest.submission_id == submission.id,
         SubmissionChangeRequest.org_id == org_id,
     ).delete(synchronize_session=False)
-    db.query(AuditEvent).filter(
-        AuditEvent.entity_type == "video_submission",
-        AuditEvent.entity_id == str(submission.id),
-        AuditEvent.org_id == org_id,
-    ).delete(synchronize_session=False)
+    try:
+        db.query(AuditEvent).filter(
+            AuditEvent.entity_type == "video_submission",
+            AuditEvent.entity_id == str(submission.id),
+            AuditEvent.org_id == org_id,
+        ).delete(synchronize_session=False)
+    except SQLAlchemyError:
+        # Corrupt audit table rows should not block manual submission cleanup.
+        db.rollback()
+        db.query(AnalysisResult).filter(AnalysisResult.submission_id == submission.id, AnalysisResult.org_id == org_id).delete(
+            synchronize_session=False
+        )
+        db.query(MatchResult).filter(MatchResult.submission_id == submission.id, MatchResult.org_id == org_id).delete(
+            synchronize_session=False
+        )
+        db.query(ReviewDecision).filter(ReviewDecision.submission_id == submission.id, ReviewDecision.org_id == org_id).delete(
+            synchronize_session=False
+        )
+        db.query(SmsMessage).filter(SmsMessage.submission_id == submission.id, SmsMessage.org_id == org_id).delete(
+            synchronize_session=False
+        )
+        db.query(SubmissionChangeRequest).filter(
+            SubmissionChangeRequest.submission_id == submission.id,
+            SubmissionChangeRequest.org_id == org_id,
+        ).delete(synchronize_session=False)
     db.delete(submission)
 
-    write_audit(
-        db,
-        action="submission_deleted",
-        entity_type="video_submission",
-        entity_id=str(submission_id),
-        actor_id=admin.id,
-        org_id=org_id,
-        metadata={"source": "super_admin_manual"},
-    )
+    try:
+        write_audit(
+            db,
+            action="submission_deleted",
+            entity_type="video_submission",
+            entity_id=str(submission_id),
+            actor_id=admin.id,
+            org_id=org_id,
+            metadata={"source": "super_admin_manual"},
+        )
+    except SQLAlchemyError:
+        pass
     db.commit()
 
     try:
