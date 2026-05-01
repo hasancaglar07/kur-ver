@@ -5,6 +5,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_org_id, require_roles
@@ -173,18 +174,22 @@ def _build_submission_context_maps(
             row.reason_type,
         )
 
-    audit_rows = (
-        db.query(AuditEvent)
-        .filter(
-            AuditEvent.org_id == org_id,
-            AuditEvent.entity_type == "video_submission",
-            AuditEvent.entity_id.in_([str(item) for item in submission_ids]),
-            AuditEvent.actor_id.isnot(None),
-            AuditEvent.action.in_(ADMIN_ACTIONS),
+    try:
+        audit_rows = (
+            db.query(AuditEvent)
+            .filter(
+                AuditEvent.org_id == org_id,
+                AuditEvent.entity_type == "video_submission",
+                AuditEvent.entity_id.in_([str(item) for item in submission_ids]),
+                AuditEvent.actor_id.isnot(None),
+                AuditEvent.action.in_(ADMIN_ACTIONS),
+            )
+            .order_by(AuditEvent.created_at.desc())
+            .all()
         )
-        .order_by(AuditEvent.created_at.desc())
-        .all()
-    )
+    except SQLAlchemyError:
+        # Corrupt audit rows should not block operator log listing.
+        audit_rows = []
     actor_ids = sorted({row.actor_id for row in audit_rows if row.actor_id is not None})
     actor_usernames = {
         row.id: row.username
