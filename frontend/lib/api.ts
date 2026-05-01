@@ -311,6 +311,17 @@ export async function getSubmission(id: number): Promise<SubmissionDetail> {
   return res.json();
 }
 
+export async function deleteSubmission(submissionId: number) {
+  const res = await apiFetch(`${API_BASE}/submissions/${submissionId}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  }, "Kayıt silinemedi.");
+  if (!res.ok) {
+    throw new Error(await readApiError(res, "Kayıt silinemedi."));
+  }
+  return res.json();
+}
+
 export async function claimSubmission(submissionId: number, note?: string) {
   const res = await apiFetch(`${API_BASE}/submissions/${submissionId}/claim`, {
     method: "POST",

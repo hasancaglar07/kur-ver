@@ -1545,6 +1545,71 @@ def release_submission_claim(
     return {"submission_id": submission.id, "released": True}
 
 
+@router.delete("/{submission_id:int}")
+def delete_submission(
+    submission_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_roles(UserRole.SUPER_ADMIN)),
+) -> dict:
+    org_id = require_org_id(admin)
+    submission = _get_submission_for_org(db, submission_id, org_id)
+    if not submission:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
+
+    if _is_claim_active(submission) and submission.claim_admin_id != admin.id:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Submission is claimed by another admin")
+
+    raw_path = storage.raw_path(submission.raw_object_key)
+    processed_path = storage.processed_path(submission.processed_object_key) if submission.processed_object_key else None
+
+    db.query(AnalysisResult).filter(AnalysisResult.submission_id == submission.id, AnalysisResult.org_id == org_id).delete(
+        synchronize_session=False
+    )
+    db.query(MatchResult).filter(MatchResult.submission_id == submission.id, MatchResult.org_id == org_id).delete(
+        synchronize_session=False
+    )
+    db.query(ReviewDecision).filter(ReviewDecision.submission_id == submission.id, ReviewDecision.org_id == org_id).delete(
+        synchronize_session=False
+    )
+    db.query(SmsMessage).filter(SmsMessage.submission_id == submission.id, SmsMessage.org_id == org_id).delete(
+        synchronize_session=False
+    )
+    db.query(SubmissionChangeRequest).filter(
+        SubmissionChangeRequest.submission_id == submission.id,
+        SubmissionChangeRequest.org_id == org_id,
+    ).delete(synchronize_session=False)
+    db.query(AuditEvent).filter(
+        AuditEvent.entity_type == "video_submission",
+        AuditEvent.entity_id == str(submission.id),
+        AuditEvent.org_id == org_id,
+    ).delete(synchronize_session=False)
+    db.delete(submission)
+
+    write_audit(
+        db,
+        action="submission_deleted",
+        entity_type="video_submission",
+        entity_id=str(submission_id),
+        actor_id=admin.id,
+        org_id=org_id,
+        metadata={"source": "super_admin_manual"},
+    )
+    db.commit()
+
+    try:
+        if raw_path.exists():
+            raw_path.unlink()
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        if processed_path and processed_path.exists():
+            processed_path.unlink()
+    except Exception:  # noqa: BLE001
+        pass
+
+    return {"submission_id": submission_id, "deleted": True}
+
+
 @router.get("/admin-logs/mine", response_model=AdminLogsResponse)
 def get_my_admin_logs(
     limit: int = Query(default=100, ge=1, le=500),

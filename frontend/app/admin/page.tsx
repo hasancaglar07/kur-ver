@@ -9,6 +9,7 @@ import { ArrowClockwise, WarningCircle, X } from "@phosphor-icons/react";
 import { QualityTag } from "@/components/QualityTag";
 import {
   createOperator,
+  deleteSubmission,
   getMe,
   getSuperadminAnalytics,
   listOperators,
@@ -164,6 +165,7 @@ function AdminPageInner() {
   const [refreshBusy, setRefreshBusy] = useState(false);
   const [requestBusyId, setRequestBusyId] = useState<number | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [deleteBusyId, setDeleteBusyId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!feedback) return;
@@ -395,6 +397,33 @@ function AdminPageInner() {
       setFeedback({ type: "error", message: toErrorMessage(err, "SMS gönderimi başarısız") });
     } finally {
       setQuickSmsSendingId(null);
+    }
+  };
+
+  const onDeleteSubmission = async (row: SubmissionItem) => {
+    if (userRole !== "super_admin") {
+      setFeedback({ type: "error", message: "Bu işlem sadece süper admin için açık." });
+      return;
+    }
+    const confirmed = await feedbackUi.confirm({
+      title: "Kaydı Sil",
+      description: `Kayıt #${row.id} kalıcı olarak silinecek. Devam edilsin mi?`,
+      confirmText: "Evet, sil",
+      cancelText: "Vazgeç",
+      tone: "warn",
+    });
+    if (!confirmed) return;
+
+    setDeleteBusyId(row.id);
+    try {
+      await deleteSubmission(row.id);
+      await refreshQueueData();
+      setSelectedSubmissionIds((prev) => prev.filter((id) => id !== row.id));
+      setFeedback({ type: "info", message: `Kayıt #${row.id} silindi.` });
+    } catch (err) {
+      setFeedback({ type: "error", message: toErrorMessage(err, "Kayıt silinemedi.") });
+    } finally {
+      setDeleteBusyId(null);
     }
   };
 
@@ -1107,6 +1136,16 @@ function AdminPageInner() {
                           <Link href={`/admin/${row.id}`} className="rounded-[8px] border border-[#EAEAEA] bg-white px-3 py-2 text-[13px] font-semibold">
                             Detay
                           </Link>
+                          {userRole === "super_admin" && (
+                            <button
+                              type="button"
+                              onClick={() => onDeleteSubmission(row)}
+                              disabled={deleteBusyId === row.id}
+                              className="rounded-[8px] border border-[#F2D9DB] bg-[#FDF0F1] px-3 py-2 text-[13px] font-semibold text-[#9D3438] disabled:opacity-50"
+                            >
+                              {deleteBusyId === row.id ? "Siliniyor..." : "Sil"}
+                            </button>
+                          )}
                         </div>
                       </article>
                     );
@@ -1204,6 +1243,16 @@ function AdminPageInner() {
                                   className="rounded-[8px] border border-[#EAEAEA] bg-white px-2.5 py-1.5 text-[12px] font-semibold hover:border-[#D0D0CE]">
                                   Detay
                                 </Link>
+                                {userRole === "super_admin" && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onDeleteSubmission(row)}
+                                    disabled={deleteBusyId === row.id}
+                                    className="rounded-[8px] border border-[#F2D9DB] bg-[#FDF0F1] px-2.5 py-1.5 text-[12px] font-semibold text-[#9D3438] disabled:opacity-50"
+                                  >
+                                    {deleteBusyId === row.id ? "Siliniyor..." : "Sil"}
+                                  </button>
+                                )}
                               </div>
                             </td>
                           </tr>
