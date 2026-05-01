@@ -6,6 +6,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.api.router import api_router
 from app.core.config import get_settings
@@ -139,7 +140,11 @@ def _backfill_org_references(default_org_id: int) -> None:
         conn.exec_driver_sql("UPDATE match_results SET org_id = ? WHERE org_id IS NULL", (default_org_id,))
         conn.exec_driver_sql("UPDATE review_decisions SET org_id = ? WHERE org_id IS NULL", (default_org_id,))
         conn.exec_driver_sql("UPDATE sms_messages SET org_id = ? WHERE org_id IS NULL", (default_org_id,))
-        conn.exec_driver_sql("UPDATE audit_events SET org_id = ? WHERE org_id IS NULL", (default_org_id,))
+        try:
+            conn.exec_driver_sql("UPDATE audit_events SET org_id = ? WHERE org_id IS NULL", (default_org_id,))
+        except SQLAlchemyError:
+            # Corrupt legacy rows in audit_events should not block app startup.
+            pass
 
 
 def _seed_default_users() -> None:
