@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.api.deps import require_org_id, require_roles
 from app.core.config import get_settings
@@ -333,18 +334,22 @@ def _build_submission_maps(
             continue
         latest_request_by_submission_id[row.submission_id] = (row.status, row.admin_note, row.resolved_at, row.reason_type)
 
-    audit_rows = (
-        db.query(AuditEvent)
-        .filter(
-            AuditEvent.org_id == org_id,
-            AuditEvent.entity_type == "video_submission",
-            AuditEvent.entity_id.in_([str(item) for item in submission_ids]),
-            AuditEvent.actor_id.isnot(None),
-            AuditEvent.action.in_(ADMIN_ACTIONS),
+    try:
+        audit_rows = (
+            db.query(AuditEvent)
+            .filter(
+                AuditEvent.org_id == org_id,
+                AuditEvent.entity_type == "video_submission",
+                AuditEvent.entity_id.in_([str(item) for item in submission_ids]),
+                AuditEvent.actor_id.isnot(None),
+                AuditEvent.action.in_(ADMIN_ACTIONS),
+            )
+            .order_by(AuditEvent.created_at.desc())
+            .all()
         )
-        .order_by(AuditEvent.created_at.desc())
-        .all()
-    )
+    except SQLAlchemyError:
+        # Corrupt audit rows should not block queue listing.
+        audit_rows = []
     actor_ids = sorted({row.actor_id for row in audit_rows if row.actor_id is not None})
     actor_usernames = {
         row.id: row.username
