@@ -435,18 +435,21 @@ def _is_claim_active(submission: VideoSubmission) -> bool:
 def _latest_admin_action_info(
     db: Session, submission_id: int, org_id: int
 ) -> tuple[str | None, int | None, str | None, datetime | None]:
-    row = (
-        db.query(AuditEvent)
-        .filter(
-            AuditEvent.org_id == org_id,
-            AuditEvent.entity_type == "video_submission",
-            AuditEvent.entity_id == str(submission_id),
-            AuditEvent.actor_id.isnot(None),
-            AuditEvent.action.in_(ADMIN_ACTIONS),
+    try:
+        row = (
+            db.query(AuditEvent)
+            .filter(
+                AuditEvent.org_id == org_id,
+                AuditEvent.entity_type == "video_submission",
+                AuditEvent.entity_id == str(submission_id),
+                AuditEvent.actor_id.isnot(None),
+                AuditEvent.action.in_(ADMIN_ACTIONS),
+            )
+            .order_by(AuditEvent.created_at.desc())
+            .first()
         )
-        .order_by(AuditEvent.created_at.desc())
-        .first()
-    )
+    except SQLAlchemyError:
+        return None, None, None, None
     if not row:
         return None, None, None, None
     actor = db.query(User).filter(User.id == row.actor_id, User.org_id == org_id).first() if row.actor_id else None
