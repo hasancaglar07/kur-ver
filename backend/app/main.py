@@ -35,10 +35,14 @@ app.include_router(api_router, prefix=settings.api_prefix)
 def on_startup() -> None:
     Base.metadata.create_all(bind=engine)
     _run_lightweight_migrations()
-    default_org_id = _seed_default_organization()
-    _backfill_org_references(default_org_id)
-    _seed_default_users()
-    _seed_default_donors()
+    try:
+        default_org_id = _seed_default_organization()
+        _backfill_org_references(default_org_id)
+        _seed_default_users()
+        _seed_default_donors()
+    except SQLAlchemyError:
+        # Keep API bootable even if a legacy SQLite file has partial corruption.
+        pass
 
 
 def _add_column_if_missing(table: str, column: str, ddl: str) -> None:
